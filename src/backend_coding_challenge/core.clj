@@ -41,13 +41,17 @@
 (defn names
   [entry]
   "Returns the normalized name list for row of data"
-  (let [alt-names (s/split (->> entry (drop 3) first) #",")
-        nalt-names (->> alt-names (map s/trim) (map s/lower-case))
+  (let [alt-names (->> entry (drop 3) first)
+        nalt-names (when (seq alt-names)
+                     (->> (s/split alt-names #",") (map s/trim) (map s/lower-case)))
         name (-> entry second s/trim s/lower-case)
-        ascii (-> entry second s/trim s/lower-case)]
-    (set (cons name (cons ascii nalt-names)))))
-  
-  
+        ascii (->> entry (drop 2) first s/trim s/lower-case)]
+    (->> nalt-names
+         (cons ascii)
+         (cons name)
+         set)))
+ 
+ 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
