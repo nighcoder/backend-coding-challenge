@@ -7,7 +7,8 @@
                  [http-kit "2.3.0"]
                  [compojure "1.6.1"]
                  [org.clojure/data.csv "0.1.4"]
-                 [org.clojure/data.json "0.2.7"]]
+                 [org.clojure/data.json "0.2.7"]
+                 [ring/ring-defaults "0.3.2"]]
   :main ^:skip-aot backend-coding-challenge.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

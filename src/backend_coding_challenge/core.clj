@@ -1,7 +1,12 @@
 (ns backend-coding-challenge.core
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
-            [clojure.string :as s])
+            [clojure.string :as s]
+            [org.httpkit.server :as srv]
+            [compojure.core :as cmp]
+            [compojure.route :as route]
+            [ring.middleware.defaults :as ring]
+            [clojure.data.json :as json])
   (:gen-class))
 
 (def DATA
@@ -49,6 +54,10 @@
   [a]
   (/ (* a Math/PI) 180))
 
+(defn round
+  [x]
+  (Float/parseFloat (format "%.2f" x)))
+
 (defn geo-distance
   [lat1 long1 lat2 long2]
   "Returns the distance between two coordinates on Earth"
@@ -82,7 +91,7 @@
         names (into #{} (map (comp s/trim s/lower-case) (subvec entry 1 3)))
         res (mapv (partial parser query) names)
         alt-names (into #{} (map (comp s/trim s/lower-case)) (entry 3))]
-    (float (reduce max (into res (map (comp (partial * 1/2) (partial parser query)) alt-names))))))
+    (reduce max (into res (map (comp (partial * 1/2) (partial parser query)) alt-names)))))
 
 (defn matches?
   [query entry]
@@ -90,23 +99,62 @@
   (some #(s/includes? % query) (names entry)))
 
 (defn result
-  [query entry & coord]
-  (let [[_ -name  _ _ lat lon _ _ country _ admin _ _ _ population & _] entry]
-    {:name (str -name
-                ", "
-                (case country
-                  "CA" (CA-ADM admin)
-                  "US" admin)
-                ", "
-                (case country
-                  "CA" "Canada"
-                  "US" "USA"))
-     :latitude lat
-     :longitude lon
-     :population population
-     :score (name-score query entry)}))
-              
+  [[_ -name  _ _ lat lon _ _ country _ admin _ _ _ population & _]]
+  {:name (str -name
+              ", "
+              (case country
+                "CA" (CA-ADM admin)
+                "US" admin)
+              ", "
+              (case country
+                "CA" "Canada"
+                "US" "USA"))
+   :latitude lat
+   :longitude lon
+   :population population})
+
+(defn total-score
+  [{:keys [q latitude longitude]} res]
+  (if (empty? res)
+    []
+    (let [scores (map (partial name-score q) res)
+          ceil1000 (fn [x] (if (> 1000 x) x 1000))
+          distances (if (and latitude longitude)
+                      (map #(geo-distance latitude longitude (nth % 4) (nth % 5)) res)
+                      (repeat (count res) 0))
+          g-scores (->> distances (map ceil1000) (mapv #(/ (- 1100 %) 1100)))
+          total-scores (map * scores g-scores)
+          min-score (reduce min total-scores)
+          max-score (reduce max total-scores)
+          min-max (fn [x] (+ 0.1 (/ (* 0.9 (- x min-score)) (- max-score min-score))))]
+      (mapv (comp round min-max) total-scores))))
+ 
+(defn suggestions
+  [req]
+  (let [query (:q (:params req))
+        lat (:latitude (:params req))
+        lon (:longitude (:params req))]
+   {:status 200
+    :headers {"Content-Type" "application/json"}
+    :body (if (empty? query)
+            (json/write-str {:suggestions []})
+            (let [query (s/trim (s/lower-case query))
+                  param {:q query
+                         :latitude (when lat (Float/parseFloat lat))
+                         :longitude (when lon (Float/parseFloat lon))}
+                  res (filterv (partial matches? query) DATA)
+                  sug (mapv result res)
+                  scores (total-score param res)]
+              (json/write-str {:suggestions (->> scores 
+                                                 (mapv #(assoc %1 :score %2) sug)
+                                                 (sort-by :score)
+                                                 reverse)})))}))
+
+(cmp/defroutes cities
+  (cmp/GET "/suggestions" []
+           (ring/wrap-defaults suggestions ring/api-defaults)) 
+  (route/not-found "Route not found. Use /suggestions"))
+
 (defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+  [port]
+  (srv/run-server cities {:port (Integer/parseInt port)}))
