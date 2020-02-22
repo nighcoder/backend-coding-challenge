@@ -1,0 +1,9 @@
+[Unit]
+Description=REST API for finding North American cities
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/java -jar /opt/backend-coding-challenge/backend-coding-challenge-0.0.1-standalone.jar 8008
+
+[Install]
+WantedBy=multi-user.target
