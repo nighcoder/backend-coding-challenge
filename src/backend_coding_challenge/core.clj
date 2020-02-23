@@ -7,6 +7,7 @@
             [compojure.route :as route]
             [ring.middleware.defaults :as ring]
             [clojure.data.json :as json])
+  (:import [sun.misc Signal SignalHandler])
   (:gen-class))
 
 (def DATA
@@ -157,4 +158,9 @@
 
 (defn -main
   [port]
-  (srv/run-server cities {:port (Integer/parseInt port)}))
+  (let [http-srv (srv/run-server cities {:port (Integer/parseInt port)})]
+    ;; Register a SIGTERM handler to gracefully shutdown the server
+    (Signal/handle
+      (new Signal "TERM")
+      (reify SignalHandler
+        (handle [this sig] ((fn [s] (http-srv) (System/exit 0)) sig))))))
