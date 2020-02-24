@@ -146,7 +146,10 @@
                   param {:q query
                          :latitude (when lat (Float/parseFloat lat))
                          :longitude (when lon (Float/parseFloat lon))}
-                  res (filterv (partial matches? query) DATA)
+                  res (->> DATA
+                           (filter (partial matches? query))
+                           (take 500)
+                           vec)
                   sug (mapv result res)
                   scores (total-score param res)]
               (json/write-str {:suggestions (->> scores 
