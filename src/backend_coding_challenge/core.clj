@@ -73,9 +73,12 @@
                             (deg->rad long1)))))))))
 
 (defn names
-  [[_ name ascii alt-names & _]]
+  [[_ -name ascii alt-names & _]]
   "Returns the normalized name list for row of data"
-  (into #{} (map (comp s/trim s/lower-case) (conj alt-names name ascii))))
+  (into #{} (map (comp s/trim s/lower-case)
+                 (if (= [""] alt-names)
+                   (conj [] -name ascii)
+                   (conj alt-names -name ascii)))))
 
 (defn name-distance
   [query -name]
